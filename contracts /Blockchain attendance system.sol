@@ -123,4 +123,64 @@ contract AttendanceSystem {
         AttendanceRecord memory record = attendance[_courseId][_sessionId][_student];
         return (record.isPresent, record.timestamp);
     }
+    
+    /**
+     * @dev Get student attendance count across all sessions for a specific course
+     * @param _courseId ID of the course
+     * @param _student Address of the student
+     * @param _totalSessions Total number of sessions to check (from session 0 to _totalSessions-1)
+     * @return presentCount Number of sessions the student was present for
+     */
+    function getStudentAttendanceCount(
+        uint256 _courseId,
+        address _student,
+        uint256 _totalSessions
+    ) public view returns (uint256 presentCount) {
+        require(_totalSessions > 0, "Total sessions must be greater than zero");
+        
+        uint256 count = 0;
+        for (uint256 i = 0; i < _totalSessions; i++) {
+            if (attendance[_courseId][i][_student].isPresent) {
+                count++;
+            }
+        }
+        
+        return count;
+    }
+    
+    /**
+     * @dev Bulk mark attendance for multiple students in a single transaction
+     * @param _courseId ID of the course
+     * @param _sessionId ID of the session
+     * @param _students Array of student addresses
+     * @param _arePresent Array of attendance statuses corresponding to each student
+     */
+    function bulkMarkAttendance(
+        uint256 _courseId,
+        uint256 _sessionId,
+        address[] memory _students,
+        bool[] memory _arePresent
+    ) public onlyAuthorized(_courseId) {
+        require(courses[_courseId].isActive, "Course is not active");
+        require(_students.length == _arePresent.length, "Arrays length mismatch");
+        require(_students.length > 0, "Empty arrays provided");
+        
+        for (uint256 i = 0; i < _students.length; i++) {
+            address student = _students[i];
+            bool isPresent = _arePresent[i];
+            
+            // Register student if they're not already registered
+            if (!registeredStudents[student]) {
+                registeredStudents[student] = true;
+            }
+            
+            // Record attendance
+            attendance[_courseId][_sessionId][student] = AttendanceRecord({
+                timestamp: block.timestamp,
+                isPresent: isPresent
+            });
+            
+            emit AttendanceMarked(_courseId, _sessionId, student, isPresent, block.timestamp);
+        }
+    }
 }
